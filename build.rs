@@ -1,4 +1,3 @@
-
 fn main() {
-    embed_resource::compile("checksums.rc");
+    embed_resource::compile("build.rc");
 }
