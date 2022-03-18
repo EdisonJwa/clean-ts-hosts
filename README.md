@@ -1,7 +1,9 @@
 # Clean TeamSpeak Hosts
 
-一个用于清理被 ts1.cn 污染的Hosts文件的程序
+一个用于清理被 ts1.cn （又名 TeamSpeak 中文站） 污染的Hosts文件的程序
 A program for cleaning up Hosts files contaminated by ts1.cn
+
+
 
 [为何不要使用 ts1.cn](https://ts.wevg.org/why-not-ts1-cn/)
 
