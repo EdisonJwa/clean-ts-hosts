@@ -1,6 +1,6 @@
 use anyhow::anyhow;
-use std::fs::{read, File, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Seek, Write};
+use std::fs::{read_to_string, File, OpenOptions};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
@@ -25,21 +25,26 @@ fn staff() -> anyhow::Result<()> {
     let windir = std::env::var("windir")
         .map_err(|e| anyhow!("Got error while get windir variable: {:?}", e))?;
 
-    let work_dir = PathBuf::from_str(windir.as_str())
-        .unwrap()
-        .join(Path::new("system32/derivers/etc/"));
+    let sub_dir = Path::new("system32").join("drivers").join("etc");
+
+    let work_dir = PathBuf::from_str(windir.as_str()).unwrap().join(sub_dir);
 
     let hosts_path = work_dir.join("hosts");
 
     let backup_path = work_dir.join(format!("hosts_backup_{}", get_current_timestamp()));
 
-    let hosts_file = File::open(&hosts_path)
-        .map_err(|e| anyhow!("Open hosts file {:?} error: {:?}", &hosts_path, e))?;
+    println!(
+        "Hosts path: {:?}\nBackup path: {:?}",
+        &hosts_path, &backup_path
+    );
+    let hosts_file =
+        File::open(&hosts_path).map_err(|e| anyhow!("Open hosts file error: {:?}", e))?;
 
     let backup_file = OpenOptions::new()
-        .create_new(true)
+        .create(true)
+        .write(true)
         .open(&backup_path)
-        .map_err(|e| anyhow!("Open backup hosts file {:?} error: {:?}", &backup_path, e))?;
+        .map_err(|e| anyhow!("Open backup hosts file error: {:?}", e))?;
 
     let mut reader = BufReader::new(hosts_file);
 
@@ -48,32 +53,31 @@ fn staff() -> anyhow::Result<()> {
     std::io::copy(&mut reader, &mut writer)
         .map_err(|e| anyhow!("Got error while copy hosts to backup: {:?}", e))?;
 
+    writer
+        .flush()
+        .map_err(|e| anyhow!("Got error while flush writer file: {:?}", e))?;
+
     drop(writer);
     drop(reader);
 
-    let hosts_file = File::open(hosts_path)
-        .map_err(|e| anyhow!("Open hosts file {:?} error: {:?}", &hosts_path, e))?;
+    let hosts_file = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(&hosts_path)
+        .map_err(|e| anyhow!("Open hosts file(2) error: {:?}", e))?;
 
-    let backup_file = File::open(&backup_path)
-        .map_err(|e| anyhow!("Open backup hosts file {:?} error: {:?}", &backup_path, e))?;
+    let content = read_to_string(backup_path)
+        .map_err(|e| anyhow!("Read backup hosts file error: {:?}", e))?;
 
-    let mut reader = BufReader::new(backup_file);
     let mut writer = BufWriter::new(hosts_file);
 
-    let mut buff = String::new();
-    'outside: loop {
-        let size = reader
-            .read_line(&mut buff)
-            .map_err(|e| anyhow!("Got error while read backup file: {:?}", e))?;
-
-        if size == 0 {
-            break;
-        }
-
-        let origin_content = buff.trim();
+    'outside: for line in content.lines() {
+        let origin_content = line.trim();
+        let line = format!("{}\n", line);
         if origin_content.starts_with('#') {
             writer
-                .write(buff.as_bytes())
+                .write(line.as_bytes())
                 .map_err(|e| anyhow!("Got error while write hosts: {:?}", e))?;
             continue;
         }
@@ -86,7 +90,8 @@ fn staff() -> anyhow::Result<()> {
 
         for domain in TARGET_DOMAIN {
             if content.contains(domain) {
-                let buf = format!("#{}", origin_content);
+                let buf = format!("#{}\n", origin_content);
+                println!("Find {:?} match {:?}", origin_content, domain);
                 writer
                     .write(buf.as_bytes())
                     .map_err(|e| anyhow!("Got error while write hosts: {:?}", e))?;
@@ -95,7 +100,7 @@ fn staff() -> anyhow::Result<()> {
         }
 
         writer
-            .write(buff.as_bytes())
+            .write(line.as_bytes())
             .map_err(|e| anyhow!("Got error while write hosts: {:?}", e))?;
     }
 
