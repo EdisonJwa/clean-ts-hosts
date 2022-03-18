@@ -37,34 +37,15 @@ fn staff() -> anyhow::Result<()> {
         "Hosts path: {:?}\nBackup path: {:?}",
         &hosts_path, &backup_path
     );
-    let hosts_file =
-        File::open(&hosts_path).map_err(|e| anyhow!("Open hosts file error: {:?}", e))?;
 
-    let backup_file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&backup_path)
-        .map_err(|e| anyhow!("Open backup hosts file error: {:?}", e))?;
-
-    let mut reader = BufReader::new(hosts_file);
-
-    let mut writer = BufWriter::new(backup_file);
-
-    std::io::copy(&mut reader, &mut writer)
+    std::fs::copy(&hosts_path, &backup_path)
         .map_err(|e| anyhow!("Got error while copy hosts to backup: {:?}", e))?;
-
-    writer
-        .flush()
-        .map_err(|e| anyhow!("Got error while flush writer file: {:?}", e))?;
-
-    drop(writer);
-    drop(reader);
 
     let hosts_file = OpenOptions::new()
         .create(true)
         .truncate(true)
         .write(true)
-        .open(&hosts_path)
+        .open(hosts_path)
         .map_err(|e| anyhow!("Open hosts file(2) error: {:?}", e))?;
 
     let content = read_to_string(backup_path)
